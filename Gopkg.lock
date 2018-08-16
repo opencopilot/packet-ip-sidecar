@@ -2,8 +2,35 @@
 
 
 [[projects]]
+  name = "github.com/evanphx/json-patch"
+  packages = ["."]
+  revision = "afac545df32f2287a079e2dfb7ba2745a643747e"
+  version = "v3.0.0"
+
+[[projects]]
+  name = "github.com/golang/protobuf"
+  packages = [
+    "proto",
+    "ptypes",
+    "ptypes/any",
+    "ptypes/duration",
+    "ptypes/timestamp"
+  ]
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/packethost/packetmetadata"
+  packages = [
+    "hegel",
+    "packetmetadata"
+  ]
+  revision = "22d1b9eb597617e18e00e9f566a90b1da5616e3a"
+
+[[projects]]
   name = "github.com/packethost/packngo"
-  packages = ["metadata"]
+  packages = ["."]
   revision = "131798f2804a1b3e895ca98047d56f0d7e094e2a"
   version = "v0.1.0"
 
@@ -20,17 +47,91 @@
   branch = "master"
   name = "github.com/vishvananda/netns"
   packages = ["."]
-  revision = "be1fbeda19366dea804f00efff2dd73a1642fdcc"
+  revision = "13995c7128ccc8e51e9a6bd2b551020a27180abd"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = [
+    "context",
+    "http/httpguts",
+    "http2",
+    "http2/hpack",
+    "idna",
+    "internal/timeseries",
+    "trace"
+  ]
+  revision = "aaf60122140d3fcf75376d319f0554393160eb50"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "7138fd3d9dc8335c567ca206f4333fb75eb05d56"
+  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
+
+[[projects]]
+  name = "golang.org/x/text"
+  packages = [
+    "collate",
+    "collate/build",
+    "internal/colltab",
+    "internal/gen",
+    "internal/tag",
+    "internal/triegen",
+    "internal/ucd",
+    "language",
+    "secure/bidirule",
+    "transform",
+    "unicode/bidi",
+    "unicode/cldr",
+    "unicode/norm",
+    "unicode/rangetable"
+  ]
+  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
+  version = "v0.3.0"
+
+[[projects]]
+  branch = "master"
+  name = "google.golang.org/genproto"
+  packages = ["googleapis/rpc/status"]
+  revision = "d0a8f471bba2dbb160885b0000d814ee5d559bad"
+
+[[projects]]
+  name = "google.golang.org/grpc"
+  packages = [
+    ".",
+    "balancer",
+    "balancer/base",
+    "balancer/roundrobin",
+    "codes",
+    "connectivity",
+    "credentials",
+    "encoding",
+    "encoding/proto",
+    "grpclog",
+    "internal",
+    "internal/backoff",
+    "internal/channelz",
+    "internal/envconfig",
+    "internal/grpcrand",
+    "internal/transport",
+    "keepalive",
+    "metadata",
+    "naming",
+    "peer",
+    "resolver",
+    "resolver/dns",
+    "resolver/passthrough",
+    "stats",
+    "status",
+    "tap"
+  ]
+  revision = "32fb0ac620c32ba40a4626ddf94d90d12cce3455"
+  version = "v1.14.0"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "4d3ac243783e275ee001741f9f8c8c4cba9c8d444c65d0340a82315f4268b850"
+  inputs-digest = "f6e65500c558726c8f8e9f9de7fa757f119d1dc222357bad52a257053e68855e"
   solver-name = "gps-cdcl"
   solver-version = 1
