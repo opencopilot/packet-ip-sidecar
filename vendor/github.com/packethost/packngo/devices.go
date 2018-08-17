@@ -1,13 +1,17 @@
 package packngo
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const deviceBasePath = "/devices"
 
 // DeviceService interface defines available device methods
 type DeviceService interface {
-	List(ProjectID string) ([]Device, *Response, error)
+	List(ProjectID string, listOpt *ListOptions) ([]Device, *Response, error)
 	Get(string) (*Device, *Response, error)
+	GetExtra(deviceID string, includes, excludes []string) (*Device, *Response, error)
 	Create(*DeviceCreateRequest) (*Device, *Response, error)
 	Update(string, *DeviceUpdateRequest) (*Device, *Response, error)
 	Delete(string) (*Response, error)
@@ -16,32 +20,44 @@ type DeviceService interface {
 	PowerOn(string) (*Response, error)
 	Lock(string) (*Response, error)
 	Unlock(string) (*Response, error)
+	ListEvents(string, *ListOptions) ([]Event, *Response, error)
 }
 
 type devicesRoot struct {
 	Devices []Device `json:"devices"`
+	Meta    meta     `json:"meta"`
 }
 
 // Device represents a Packet device
 type Device struct {
-	ID            string       `json:"id"`
-	Href          string       `json:"href,omitempty"`
-	Hostname      string       `json:"hostname,omitempty"`
-	State         string       `json:"state,omitempty"`
-	Created       string       `json:"created_at,omitempty"`
-	Updated       string       `json:"updated_at,omitempty"`
-	Locked        bool         `json:"locked,omitempty"`
-	BillingCycle  string       `json:"billing_cycle,omitempty"`
-	Tags          []string     `json:"tags,omitempty"`
-	Network       []*IPAddress `json:"ip_addresses"`
-	OS            *OS          `json:"operating_system,omitempty"`
-	Plan          *Plan        `json:"plan,omitempty"`
-	Facility      *Facility    `json:"facility,omitempty"`
-	Project       *Project     `json:"project,omitempty"`
-	ProvisionPer  float32      `json:"provisioning_percentage,omitempty"`
-	UserData      string       `json:"userdata",omitempty`
-	IPXEScriptUrl string       `json:"ipxe_script_url,omitempty"`
-	AlwaysPXE     bool         `json:"always_pxe,omitempty"`
+	ID                  string                 `json:"id"`
+	Href                string                 `json:"href,omitempty"`
+	Hostname            string                 `json:"hostname,omitempty"`
+	State               string                 `json:"state,omitempty"`
+	Created             string                 `json:"created_at,omitempty"`
+	Updated             string                 `json:"updated_at,omitempty"`
+	Locked              bool                   `json:"locked,omitempty"`
+	BillingCycle        string                 `json:"billing_cycle,omitempty"`
+	Storage             map[string]interface{} `json:"storage,omitempty"`
+	Tags                []string               `json:"tags,omitempty"`
+	Network             []*IPAddressAssignment `json:"ip_addresses"`
+	Volumes             []*Volume              `json:"volumes"`
+	OS                  *OS                    `json:"operating_system,omitempty"`
+	Plan                *Plan                  `json:"plan,omitempty"`
+	Facility            *Facility              `json:"facility,omitempty"`
+	Project             *Project               `json:"project,omitempty"`
+	ProvisionEvents     []*Event               `json:"provisioning_events,omitempty"`
+	ProvisionPer        float32                `json:"provisioning_percentage,omitempty"`
+	UserData            string                 `json:"userdata,omitempty"`
+	RootPassword        string                 `json:"root_password,omitempty"`
+	IPXEScriptURL       string                 `json:"ipxe_script_url,omitempty"`
+	AlwaysPXE           bool                   `json:"always_pxe,omitempty"`
+	HardwareReservation Href                   `json:"hardware_reservation,omitempty"`
+	SpotInstance        bool                   `json:"spot_instance,omitempty"`
+	SpotPriceMax        float64                `json:"spot_price_max,omitempty"`
+	TerminationTime     *Timestamp             `json:"termination_time,omitempty"`
+	NetworkPorts        []Port                 `json:"network_ports,omitempty"`
+	CustomData          map[string]interface{} `json:"customdata,omitempty"`
 }
 
 func (d Device) String() string {
@@ -50,28 +66,35 @@ func (d Device) String() string {
 
 // DeviceCreateRequest type used to create a Packet device
 type DeviceCreateRequest struct {
-	HostName             string   `json:"hostname"`
-	Plan                 string   `json:"plan"`
-	Facility             string   `json:"facility"`
-	OS                   string   `json:"operating_system"`
-	BillingCycle         string   `json:"billing_cycle"`
-	ProjectID            string   `json:"project_id"`
-	UserData             string   `json:"userdata"`
-	Tags                 []string `json:"tags"`
-	IPXEScriptUrl        string   `json:"ipxe_script_url,omitempty"`
-	PublicIPv4SubnetSize int      `json:"public_ipv4_subnet_size,omitempty"`
-	AlwaysPXE            bool     `json:"always_pxe,omitempty"`
+	Hostname              string     `json:"hostname"`
+	Plan                  string     `json:"plan"`
+	Facility              string     `json:"facility"`
+	OS                    string     `json:"operating_system"`
+	BillingCycle          string     `json:"billing_cycle"`
+	ProjectID             string     `json:"project_id"`
+	UserData              string     `json:"userdata"`
+	Storage               string     `json:"storage,omitempty"`
+	Tags                  []string   `json:"tags"`
+	IPXEScriptURL         string     `json:"ipxe_script_url,omitempty"`
+	PublicIPv4SubnetSize  int        `json:"public_ipv4_subnet_size,omitempty"`
+	AlwaysPXE             bool       `json:"always_pxe,omitempty"`
+	HardwareReservationID string     `json:"hardware_reservation_id,omitempty"`
+	SpotInstance          bool       `json:"spot_instance,omitempty"`
+	SpotPriceMax          float64    `json:"spot_price_max,omitempty,string"`
+	TerminationTime       *Timestamp `json:"termination_time,omitempty"`
+	CustomData            string     `json:"customdata,omitempty"`
 }
 
 // DeviceUpdateRequest type used to update a Packet device
 type DeviceUpdateRequest struct {
-	HostName      string   `json:"hostname"`
-	Description   string   `json:"description"`
-	UserData      string   `json:"userdata"`
-	Locked        bool     `json:"locked"`
-	Tags          []string `json:"tags"`
-	AlwaysPXE     bool     `json:"always_pxe,omitempty"`
-	IPXEScriptUrl string   `json:"ipxe_script_url,omitempty"`
+	Hostname      *string   `json:"hostname,omitempty"`
+	Description   *string   `json:"description,omitempty"`
+	UserData      *string   `json:"userdata,omitempty"`
+	Locked        *bool     `json:"locked,omitempty"`
+	Tags          *[]string `json:"tags,omitempty"`
+	AlwaysPXE     *bool     `json:"always_pxe,omitempty"`
+	IPXEScriptURL *string   `json:"ipxe_script_url,omitempty"`
+	CustomData    *string   `json:"customdata,omitempty"`
 }
 
 func (d DeviceCreateRequest) String() string {
@@ -93,34 +116,52 @@ type DeviceServiceOp struct {
 }
 
 // List returns devices on a project
-func (s *DeviceServiceOp) List(projectID string) ([]Device, *Response, error) {
-	path := fmt.Sprintf("%s/%s/devices?include=facility", projectBasePath, projectID)
-
-	req, err := s.client.NewRequest("GET", path, nil)
-	if err != nil {
-		return nil, nil, err
+func (s *DeviceServiceOp) List(projectID string, listOpt *ListOptions) (devices []Device, resp *Response, err error) {
+	params := "include=facility"
+	if listOpt != nil {
+		params = listOpt.createURL()
 	}
+	path := fmt.Sprintf("%s/%s%s?%s", projectBasePath, projectID, deviceBasePath, params)
 
-	root := new(devicesRoot)
-	resp, err := s.client.Do(req, root)
-	if err != nil {
-		return nil, resp, err
+	for {
+		subset := new(devicesRoot)
+
+		resp, err = s.client.DoRequest("GET", path, nil, subset)
+		if err != nil {
+			return nil, resp, err
+		}
+
+		devices = append(devices, subset.Devices...)
+
+		if subset.Meta.Next != nil && (listOpt == nil || listOpt.Page == 0) {
+			path = subset.Meta.Next.Href
+			if params != "" {
+				path = fmt.Sprintf("%s&%s", path, params)
+			}
+			continue
+		}
+
+		return
 	}
-
-	return root.Devices, resp, err
 }
 
 // Get returns a device by id
 func (s *DeviceServiceOp) Get(deviceID string) (*Device, *Response, error) {
-	path := fmt.Sprintf("%s/%s?include=facility", deviceBasePath, deviceID)
+	return s.GetExtra(deviceID, []string{"facility"}, nil)
+}
 
-	req, err := s.client.NewRequest("GET", path, nil)
-	if err != nil {
-		return nil, nil, err
+// GetExtra returns a device by id. Specifying either includes/excludes provides more or less desired
+// detailed information about resources which would otherwise be represented with an href link
+func (s *DeviceServiceOp) GetExtra(deviceID string, includes, excludes []string) (*Device, *Response, error) {
+	path := fmt.Sprintf("%s/%s", deviceBasePath, deviceID)
+	if includes != nil {
+		path += fmt.Sprintf("?include=%s", strings.Join(includes, ","))
+	} else if excludes != nil {
+		path += fmt.Sprintf("?exclude=%s", strings.Join(excludes, ","))
 	}
-
 	device := new(Device)
-	resp, err := s.client.Do(req, device)
+
+	resp, err := s.client.DoRequest("GET", path, nil, device)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -130,15 +171,10 @@ func (s *DeviceServiceOp) Get(deviceID string) (*Device, *Response, error) {
 
 // Create creates a new device
 func (s *DeviceServiceOp) Create(createRequest *DeviceCreateRequest) (*Device, *Response, error) {
-	path := fmt.Sprintf("%s/%s/devices", projectBasePath, createRequest.ProjectID)
-
-	req, err := s.client.NewRequest("POST", path, createRequest)
-	if err != nil {
-		return nil, nil, err
-	}
-
+	path := fmt.Sprintf("%s/%s%s", projectBasePath, createRequest.ProjectID, deviceBasePath)
 	device := new(Device)
-	resp, err := s.client.Do(req, device)
+
+	resp, err := s.client.DoRequest("POST", path, createRequest, device)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -149,14 +185,9 @@ func (s *DeviceServiceOp) Create(createRequest *DeviceCreateRequest) (*Device, *
 // Update updates an existing device
 func (s *DeviceServiceOp) Update(deviceID string, updateRequest *DeviceUpdateRequest) (*Device, *Response, error) {
 	path := fmt.Sprintf("%s/%s?include=facility", deviceBasePath, deviceID)
-
-	req, err := s.client.NewRequest("PUT", path, updateRequest)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	device := new(Device)
-	resp, err := s.client.Do(req, device)
+
+	resp, err := s.client.DoRequest("PUT", path, updateRequest, device)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -168,92 +199,56 @@ func (s *DeviceServiceOp) Update(deviceID string, updateRequest *DeviceUpdateReq
 func (s *DeviceServiceOp) Delete(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s", deviceBasePath, deviceID)
 
-	req, err := s.client.NewRequest("DELETE", path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
+	return s.client.DoRequest("DELETE", path, nil, nil)
 }
 
 // Reboot reboots on a device
 func (s *DeviceServiceOp) Reboot(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s/actions", deviceBasePath, deviceID)
-
 	action := &DeviceActionRequest{Type: "reboot"}
-	req, err := s.client.NewRequest("POST", path, action)
-	if err != nil {
-		return nil, err
-	}
 
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
+	return s.client.DoRequest("POST", path, action, nil)
 }
 
 // PowerOff powers on a device
 func (s *DeviceServiceOp) PowerOff(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s/actions", deviceBasePath, deviceID)
-
 	action := &DeviceActionRequest{Type: "power_off"}
-	req, err := s.client.NewRequest("POST", path, action)
-	if err != nil {
-		return nil, err
-	}
 
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
+	return s.client.DoRequest("POST", path, action, nil)
 }
 
 // PowerOn powers on a device
 func (s *DeviceServiceOp) PowerOn(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s/actions", deviceBasePath, deviceID)
-
 	action := &DeviceActionRequest{Type: "power_on"}
-	req, err := s.client.NewRequest("POST", path, action)
-	if err != nil {
-		return nil, err
-	}
 
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
+	return s.client.DoRequest("POST", path, action, nil)
 }
 
-type lockDeviceType struct {
+type lockType struct {
 	Locked bool `json:"locked"`
 }
 
 // Lock sets a device to "locked"
 func (s *DeviceServiceOp) Lock(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s", deviceBasePath, deviceID)
+	action := lockType{Locked: true}
 
-	action := lockDeviceType{Locked: true}
-	req, err := s.client.NewRequest("PATCH", path, action)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
-
+	return s.client.DoRequest("PATCH", path, action, nil)
 }
 
-// Unlock sets a device to "locked"
+// Unlock sets a device to "unlocked"
 func (s *DeviceServiceOp) Unlock(deviceID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s", deviceBasePath, deviceID)
+	action := lockType{Locked: false}
 
-	action := lockDeviceType{Locked: false}
-	req, err := s.client.NewRequest("PATCH", path, action)
-	if err != nil {
-		return nil, err
-	}
+	return s.client.DoRequest("PATCH", path, action, nil)
+}
 
-	resp, err := s.client.Do(req, nil)
+// ListEvents returns list of device events
+func (s *DeviceServiceOp) ListEvents(deviceID string, listOpt *ListOptions) ([]Event, *Response, error) {
+	path := fmt.Sprintf("%s/%s%s", deviceBasePath, deviceID, eventBasePath)
 
-	return resp, err
+	return list(s.client, path, listOpt)
 }

@@ -1,42 +1,40 @@
 package packngo
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 const projectBasePath = "/projects"
 
 // ProjectService interface defines available project methods
 type ProjectService interface {
-	List() ([]Project, *Response, error)
+	List(listOpt *ListOptions) ([]Project, *Response, error)
 	Get(string) (*Project, *Response, error)
+	GetExtra(projectID string, includes, excludes []string) (*Project, *Response, error)
 	Create(*ProjectCreateRequest) (*Project, *Response, error)
-	Update(*ProjectUpdateRequest) (*Project, *Response, error)
+	Update(string, *ProjectUpdateRequest) (*Project, *Response, error)
 	Delete(string) (*Response, error)
-	ListIPAddresses(string) ([]IPAddress, *Response, error)
-	ListVolumes(string) ([]Volume, *Response, error)
-}
-
-type ipsRoot struct {
-	IPAddresses []IPAddress `json:"ip_addresses"`
-}
-
-type volumesRoot struct {
-	Volumes []Volume `json:"volumes"`
+	ListEvents(string, *ListOptions) ([]Event, *Response, error)
 }
 
 type projectsRoot struct {
 	Projects []Project `json:"projects"`
+	Meta     meta      `json:"meta"`
 }
 
 // Project represents a Packet project
 type Project struct {
-	ID      string   `json:"id"`
-	Name    string   `json:"name,omitempty"`
-	Created string   `json:"created_at,omitempty"`
-	Updated string   `json:"updated_at,omitempty"`
-	Users   []User   `json:"members,omitempty"`
-	Devices []Device `json:"devices,omitempty"`
-	SSHKeys []SSHKey `json:"ssh_keys,omitempty"`
-	URL     string   `json:"href,omitempty"`
+	ID            string        `json:"id"`
+	Name          string        `json:"name,omitempty"`
+	Organization  Organization  `json:"organization,omitempty"`
+	Created       string        `json:"created_at,omitempty"`
+	Updated       string        `json:"updated_at,omitempty"`
+	Users         []User        `json:"members,omitempty"`
+	Devices       []Device      `json:"devices,omitempty"`
+	SSHKeys       []SSHKey      `json:"ssh_keys,omitempty"`
+	URL           string        `json:"href,omitempty"`
+	PaymentMethod PaymentMethod `json:"payment_method,omitempty"`
 }
 
 func (p Project) String() string {
@@ -45,8 +43,9 @@ func (p Project) String() string {
 
 // ProjectCreateRequest type used to create a Packet project
 type ProjectCreateRequest struct {
-	Name          string `json:"name"`
-	PaymentMethod string `json:"payment_method,omitempty"`
+	Name            string `json:"name"`
+	PaymentMethodID string `json:"payment_method_id,omitempty"`
+	OrganizationID  string `json:"organization_id,omitempty"`
 }
 
 func (p ProjectCreateRequest) String() string {
@@ -55,9 +54,8 @@ func (p ProjectCreateRequest) String() string {
 
 // ProjectUpdateRequest type used to update a Packet project
 type ProjectUpdateRequest struct {
-	ID            string `json:"id"`
-	Name          string `json:"name,omitempty"`
-	PaymentMethod string `json:"payment_method,omitempty"`
+	Name            *string `json:"name,omitempty"`
+	PaymentMethodID *string `json:"payment_method_id,omitempty"`
 }
 
 func (p ProjectUpdateRequest) String() string {
@@ -69,48 +67,60 @@ type ProjectServiceOp struct {
 	client *Client
 }
 
-func (s *ProjectServiceOp) ListIPAddresses(projectID string) ([]IPAddress, *Response, error) {
-	url := fmt.Sprintf("%s/%s/ips", projectBasePath, projectID)
-	req, err := s.client.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, nil, err
+// List returns the user's projects
+func (s *ProjectServiceOp) List(listOpt *ListOptions) (projects []Project, resp *Response, err error) {
+	var params string
+	if listOpt != nil {
+		params = listOpt.createURL()
 	}
+	root := new(projectsRoot)
 
-	root := new(ipsRoot)
-	resp, err := s.client.Do(req, root)
-	if err != nil {
-		return nil, resp, err
+	path := fmt.Sprintf("%s?%s", projectBasePath, params)
+
+	for {
+		resp, err = s.client.DoRequest("GET", path, nil, root)
+		if err != nil {
+			return nil, resp, err
+		}
+
+		projects = append(projects, root.Projects...)
+
+		if root.Meta.Next != nil && (listOpt == nil || listOpt.Page == 0) {
+			path = root.Meta.Next.Href
+			if params != "" {
+				path = fmt.Sprintf("%s&%s", path, params)
+			}
+			continue
+		}
+
+		return
 	}
-
-	return root.IPAddresses, resp, err
 }
 
-// List returns the user's projects
-func (s *ProjectServiceOp) List() ([]Project, *Response, error) {
-	req, err := s.client.NewRequest("GET", projectBasePath, nil)
-	if err != nil {
-		return nil, nil, err
+// GetExtra returns a project by id with extra information
+func (s *ProjectServiceOp) GetExtra(projectID string, includes, excludes []string) (*Project, *Response, error) {
+	path := fmt.Sprintf("%s/%s", projectBasePath, projectID)
+	if includes != nil {
+		path += fmt.Sprintf("?include=%s", strings.Join(includes, ","))
+	} else if excludes != nil {
+		path += fmt.Sprintf("?exclude=%s", strings.Join(excludes, ","))
 	}
 
-	root := new(projectsRoot)
-	resp, err := s.client.Do(req, root)
+	project := new(Project)
+	resp, err := s.client.DoRequest("GET", path, nil, project)
 	if err != nil {
 		return nil, resp, err
 	}
 
-	return root.Projects, resp, err
+	return project, resp, err
 }
 
 // Get returns a project by id
 func (s *ProjectServiceOp) Get(projectID string) (*Project, *Response, error) {
 	path := fmt.Sprintf("%s/%s", projectBasePath, projectID)
-	req, err := s.client.NewRequest("GET", path, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	project := new(Project)
-	resp, err := s.client.Do(req, project)
+
+	resp, err := s.client.DoRequest("GET", path, nil, project)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -120,13 +130,9 @@ func (s *ProjectServiceOp) Get(projectID string) (*Project, *Response, error) {
 
 // Create creates a new project
 func (s *ProjectServiceOp) Create(createRequest *ProjectCreateRequest) (*Project, *Response, error) {
-	req, err := s.client.NewRequest("POST", projectBasePath, createRequest)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	project := new(Project)
-	resp, err := s.client.Do(req, project)
+
+	resp, err := s.client.DoRequest("POST", projectBasePath, createRequest, project)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -135,15 +141,11 @@ func (s *ProjectServiceOp) Create(createRequest *ProjectCreateRequest) (*Project
 }
 
 // Update updates a project
-func (s *ProjectServiceOp) Update(updateRequest *ProjectUpdateRequest) (*Project, *Response, error) {
-	path := fmt.Sprintf("%s/%s", projectBasePath, updateRequest.ID)
-	req, err := s.client.NewRequest("PATCH", path, updateRequest)
-	if err != nil {
-		return nil, nil, err
-	}
-
+func (s *ProjectServiceOp) Update(id string, updateRequest *ProjectUpdateRequest) (*Project, *Response, error) {
+	path := fmt.Sprintf("%s/%s", projectBasePath, id)
 	project := new(Project)
-	resp, err := s.client.Do(req, project)
+
+	resp, err := s.client.DoRequest("PATCH", path, updateRequest, project)
 	if err != nil {
 		return nil, resp, err
 	}
@@ -155,29 +157,12 @@ func (s *ProjectServiceOp) Update(updateRequest *ProjectUpdateRequest) (*Project
 func (s *ProjectServiceOp) Delete(projectID string) (*Response, error) {
 	path := fmt.Sprintf("%s/%s", projectBasePath, projectID)
 
-	req, err := s.client.NewRequest("DELETE", path, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req, nil)
-
-	return resp, err
+	return s.client.DoRequest("DELETE", path, nil, nil)
 }
 
-// List returns Volumes for a project
-func (s *ProjectServiceOp) ListVolumes(projectID string) ([]Volume, *Response, error) {
-	url := fmt.Sprintf("%s/%s%s", projectBasePath, projectID, volumeBasePath)
-	req, err := s.client.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, nil, err
-	}
+// ListEvents returns list of project events
+func (s *ProjectServiceOp) ListEvents(projectID string, listOpt *ListOptions) ([]Event, *Response, error) {
+	path := fmt.Sprintf("%s/%s%s", projectBasePath, projectID, eventBasePath)
 
-	root := new(volumesRoot)
-	resp, err := s.client.Do(req, root)
-	if err != nil {
-		return nil, resp, err
-	}
-
-	return root.Volumes, resp, err
+	return list(s.client, path, listOpt)
 }

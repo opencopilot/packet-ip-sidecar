@@ -3,16 +3,58 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/packethost/packetmetadata/packetmetadata"
-
+	"github.com/packethost/packngo"
 	"github.com/vishvananda/netlink"
 )
+
+var doNotRemoveNets = []string{
+	"fe80::3c50:1dff:fec5:4e5f/64",
+	"169.254.0.0/16",
+}
+
+func addDummy() error {
+	err := netlink.LinkAdd(&netlink.Dummy{
+		netlink.LinkAttrs{
+			Name: "packet0",
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	dummy, err := netlink.LinkByName("packet0")
+	if err != nil {
+		return err
+	}
+
+	err = netlink.LinkSetUp(dummy)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func removeDummy() error {
+	dummy, err := netlink.LinkByName("packet0")
+	if err != nil {
+		return err
+	}
+
+	err = netlink.LinkDel(dummy)
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
 func addIP(link netlink.Link, addr string) error {
 	a, err := netlink.ParseAddr(addr)
@@ -28,10 +70,27 @@ func addIP(link netlink.Link, addr string) error {
 }
 
 func removeIP(link netlink.Link, addr string) error {
+	ip, _, err := net.ParseCIDR(addr)
+	if err != nil {
+		return err
+	}
+
 	a, err := netlink.ParseAddr(addr)
 	if err != nil {
 		return err
 	}
+
+	// Do not remove the IP if it's in doNotRemoveNets
+	for _, subnet := range doNotRemoveNets {
+		_, ipnet, err := net.ParseCIDR(subnet)
+		if err != nil {
+			return err
+		}
+		if ipnet.Contains(ip) {
+			return nil
+		}
+	}
+
 	err = netlink.AddrDel(link, a)
 	if err != nil {
 		return err
@@ -42,11 +101,6 @@ func removeIP(link netlink.Link, addr string) error {
 
 func ensureIPs(quit chan bool) {
 	iterator, err := packetmetadata.Watch()
-	if err != nil {
-		log.Println(err)
-	}
-
-	lo, err := netlink.LinkByName("lo")
 	if err != nil {
 		log.Println(err)
 	}
@@ -62,17 +116,27 @@ func ensureIPs(quit chan bool) {
 				log.Println(err)
 			}
 
-			existingAddrs, err := netlink.AddrList(lo, 4)
+			packetIF, err := netlink.LinkByName("packet0")
 			if err != nil {
 				log.Println(err)
 			}
 
-			incomingAddrs := res.Metadata.Instance.Network
+			existingAddrs, err := netlink.AddrList(packetIF, netlink.FAMILY_ALL)
+			if err != nil {
+				log.Println(err)
+			}
+
+			incomingAddrs := make([]*packngo.IPAddressAssignment, 0)
+			for _, incomingAddr := range res.Metadata.Instance.Network {
+				if !incomingAddr.Management {
+					incomingAddrs = append(incomingAddrs, incomingAddr)
+				}
+			}
 
 			// iterate over IPs that should be added
 			for _, addr := range incomingAddrs {
 
-				ipBlock := addr.Address + "/" + strconv.Itoa(addr.Cidr)
+				ipBlock := addr.Address + "/" + strconv.Itoa(addr.CIDR)
 				incomingAddr, err := netlink.ParseAddr(ipBlock)
 				if err != nil {
 					log.Println(err)
@@ -87,7 +151,7 @@ func ensureIPs(quit chan bool) {
 					}
 				}
 				if !alreadyAdded { // if ip does not exist locally, but should
-					err := addIP(lo, ipBlock)
+					err := addIP(packetIF, ipBlock)
 					if err != nil {
 						log.Println(err)
 					}
@@ -96,21 +160,21 @@ func ensureIPs(quit chan bool) {
 
 			// iterate over IPs that are already added
 			for _, addr := range existingAddrs {
-
 				shouldKeep := false
 				for _, incomingAddr := range incomingAddrs {
-					ipBlock := incomingAddr.Address + "/" + strconv.Itoa(incomingAddr.Cidr)
+					ipBlock := incomingAddr.Address + "/" + strconv.Itoa(incomingAddr.CIDR)
 					incomingAddr, err := netlink.ParseAddr(ipBlock)
 					if err != nil {
 						log.Println(err)
 					}
+
 					if addr.Equal(*incomingAddr) {
 						shouldKeep = true
+						break
 					}
 				}
-
 				if !shouldKeep { // if ip exists locally, but should not
-					removeIP(lo, addr.String())
+					err = removeIP(packetIF, strings.Split(addr.String(), " ")[0])
 					if err != nil {
 						log.Println(err)
 					}
@@ -121,6 +185,11 @@ func ensureIPs(quit chan bool) {
 }
 
 func main() {
+	err := addDummy()
+	if err != nil {
+		log.Println(err)
+	}
+
 	quit := make(chan bool, 1)
 	go ensureIPs(quit)
 
@@ -131,6 +200,12 @@ func main() {
 	<-gracefulStop
 	log.Println("received stop signal, shutting down")
 	quit <- true
+
+	err = removeDummy()
+	if err != nil {
+		log.Println(err)
+	}
+
 	time.Sleep(1 * time.Second)
 	os.Exit(0)
 }

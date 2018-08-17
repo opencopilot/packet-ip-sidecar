@@ -26,13 +26,13 @@
     "hegel",
     "packetmetadata"
   ]
-  revision = "22d1b9eb597617e18e00e9f566a90b1da5616e3a"
+  revision = "3663ae52cb0569a8abd85f02e8704c283d2bc663"
 
 [[projects]]
+  branch = "master"
   name = "github.com/packethost/packngo"
   packages = ["."]
-  revision = "131798f2804a1b3e895ca98047d56f0d7e094e2a"
-  version = "v0.1.0"
+  revision = "3e366203a129ebb34bfb2af239e16f2c96034a65"
 
 [[projects]]
   name = "github.com/vishvananda/netlink"
@@ -132,6 +132,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "f6e65500c558726c8f8e9f9de7fa757f119d1dc222357bad52a257053e68855e"
+  inputs-digest = "03960dc6300afd2f21b5c956a97fc745744e3da03fd00a4c09258bf7581358c5"
   solver-name = "gps-cdcl"
   solver-version = 1
