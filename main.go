@@ -129,6 +129,11 @@ func EnsureIPs(quit chan bool) {
 				log.Println(err)
 			}
 
+			if packetIF == nil {
+				log.Println("packet0 interface does not exist")
+				continue
+			}
+
 			existingAddrs, err := netlink.AddrList(packetIF, netlink.FAMILY_ALL)
 			if err != nil {
 				log.Println(err)
