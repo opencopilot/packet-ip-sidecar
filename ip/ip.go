@@ -1,6 +1,7 @@
 package ip
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net"
@@ -104,7 +105,7 @@ func RemoveIP(link netlink.Link, addr string) error {
 
 // EnsureIPs watches Packet metadata and ensures that any IP blocks added to an instance are added to the packet0 dummy interface
 func EnsureIPs(quit chan bool) {
-	iterator, err := packetmetadata.Watch()
+	iterator, err := packetmetadata.Watch(context.Background())
 	if err != nil {
 		log.Println(err)
 	}

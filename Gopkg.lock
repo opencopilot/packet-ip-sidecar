@@ -16,8 +16,8 @@
     "ptypes/duration",
     "ptypes/timestamp"
   ]
-  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
-  version = "v1.1.0"
+  revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -26,13 +26,13 @@
     "hegel",
     "packetmetadata"
   ]
-  revision = "3663ae52cb0569a8abd85f02e8704c283d2bc663"
+  revision = "ce78ac01a2523629ce347fbe07a033c771af6aee"
 
 [[projects]]
   branch = "master"
   name = "github.com/packethost/packngo"
   packages = ["."]
-  revision = "3e366203a129ebb34bfb2af239e16f2c96034a65"
+  revision = "2100ba98e6dc4ca18563d91edfdbba3c4bf46ddb"
 
 [[projects]]
   name = "github.com/vishvananda/netlink"
@@ -61,13 +61,13 @@
     "internal/timeseries",
     "trace"
   ]
-  revision = "aaf60122140d3fcf75376d319f0554393160eb50"
+  revision = "8a410e7b638dca158bf9e766925842f6651ff828"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "1c9583448a9c3aa0f9a6a5241bf73c0bd8aafded"
+  revision = "49385e6e15226593f68b26af201feec29d5bba22"
 
 [[projects]]
   name = "golang.org/x/text"
@@ -94,7 +94,7 @@
   branch = "master"
   name = "google.golang.org/genproto"
   packages = ["googleapis/rpc/status"]
-  revision = "d0a8f471bba2dbb160885b0000d814ee5d559bad"
+  revision = "c66870c02cf823ceb633bcd05be3c7cda29976f4"
 
 [[projects]]
   name = "google.golang.org/grpc"

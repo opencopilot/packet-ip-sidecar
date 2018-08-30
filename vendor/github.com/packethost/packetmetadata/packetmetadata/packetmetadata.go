@@ -74,9 +74,7 @@ func Get() ([]byte, *Metadata, error) {
 }
 
 // Watch returns an iterator of change events
-func Watch() (*WatchIterator, error) {
-	ctx := context.Background()
-
+func Watch(ctx context.Context) (*WatchIterator, error) {
 	watchResults := make(chan *WatchResult, 10)
 	errorChan := make(chan error, 1)
 
