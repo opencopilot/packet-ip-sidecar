@@ -218,6 +218,7 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
+	log.Println("removed packet0 interface")
 
 	time.Sleep(1 * time.Second)
 	os.Exit(0)
