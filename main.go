@@ -16,12 +16,16 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-var doNotRemoveNets = []string{
-	"fe80::3c50:1dff:fec5:4e5f/64",
-	"169.254.0.0/16",
-}
+var (
+	doNotRemoveNets = []string{
+		"fe80::3c50:1dff:fec5:4e5f/64",
+		"169.254.0.0/16",
+	}
+	tag = "unknown"
+)
 
-func addDummy() error {
+// AddDummy creates a dummy interface called packet0
+func AddDummy() error {
 	err := netlink.LinkAdd(&netlink.Dummy{
 		netlink.LinkAttrs{
 			Name: "packet0",
@@ -43,7 +47,8 @@ func addDummy() error {
 	return nil
 }
 
-func removeDummy() error {
+// RemoveDummy removes a dummy interface called packet0
+func RemoveDummy() error {
 	dummy, err := netlink.LinkByName("packet0")
 	if err != nil {
 		return err
@@ -56,7 +61,8 @@ func removeDummy() error {
 	return nil
 }
 
-func addIP(link netlink.Link, addr string) error {
+// AddIP parses and adds an IP block to a network interface
+func AddIP(link netlink.Link, addr string) error {
 	a, err := netlink.ParseAddr(addr)
 	if err != nil {
 		return err
@@ -69,7 +75,8 @@ func addIP(link netlink.Link, addr string) error {
 	return nil
 }
 
-func removeIP(link netlink.Link, addr string) error {
+// RemoveIP parses and remove an IP block from a network interface
+func RemoveIP(link netlink.Link, addr string) error {
 	ip, _, err := net.ParseCIDR(addr)
 	if err != nil {
 		return err
@@ -99,7 +106,8 @@ func removeIP(link netlink.Link, addr string) error {
 	return nil
 }
 
-func ensureIPs(quit chan bool) {
+// EnsureIPs watches Packet metadata and ensures that any IP blocks added to an instance are added to the packet0 dummy interface
+func EnsureIPs(quit chan bool) {
 	iterator, err := packetmetadata.Watch()
 	if err != nil {
 		log.Println(err)
@@ -151,7 +159,7 @@ func ensureIPs(quit chan bool) {
 					}
 				}
 				if !alreadyAdded { // if ip does not exist locally, but should
-					err := addIP(packetIF, ipBlock)
+					err := AddIP(packetIF, ipBlock)
 					if err != nil {
 						log.Println(err)
 					}
@@ -174,7 +182,7 @@ func ensureIPs(quit chan bool) {
 					}
 				}
 				if !shouldKeep { // if ip exists locally, but should not
-					err = removeIP(packetIF, strings.Split(addr.String(), " ")[0])
+					err = RemoveIP(packetIF, strings.Split(addr.String(), " ")[0])
 					if err != nil {
 						log.Println(err)
 					}
@@ -185,13 +193,13 @@ func ensureIPs(quit chan bool) {
 }
 
 func main() {
-	err := addDummy()
+	err := AddDummy()
 	if err != nil {
 		log.Println(err)
 	}
 
 	quit := make(chan bool, 1)
-	go ensureIPs(quit)
+	go EnsureIPs(quit)
 
 	var gracefulStop = make(chan os.Signal)
 	signal.Notify(gracefulStop, syscall.SIGTERM)
@@ -201,7 +209,7 @@ func main() {
 	log.Println("received stop signal, shutting down")
 	quit <- true
 
-	err = removeDummy()
+	err = RemoveDummy()
 	if err != nil {
 		log.Println(err)
 	}
